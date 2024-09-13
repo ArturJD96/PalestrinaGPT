@@ -5,15 +5,21 @@ from music21.stream.base import Stream, Score
 from music21.pitch import Pitch
 
 
+class ScoreAnalysis(dict):
+    ...
+
 class ScoreAnalyzer():
 
     DEFAULT_DATABASE = 'Palestrina'
 
-    def __call__(self, score:Score, database_name=None) -> dict:
+    def __init__(self):
+        ...
 
-        analysis = dict()
+    def __call__(self, score:Score, database_name=None) -> ScoreAnalysis:
 
-        database = database_name or ScoreAnalysis.DEFAULT_DATABASE
+        analysis = ScoreAnalysis()
+
+        database = database_name or ScoreAnalyzer.DEFAULT_DATABASE
         score_path = Path(score.metadata.filePath)
         '''
         Find basic information
@@ -34,7 +40,7 @@ class ScoreAnalyzer():
         key_signature = self.get_keySignature(score)
         scala = self.estimate_chiavetta(score, key_signature)
 
-        score_chords:Score = score.chordify() #type:ignore
+        score_chords:Score = score.chordify().flatten().notes #type:ignore
         first_lowest_pitch = score_chords.first().sortAscending().pitches[0]
         last_lowest_pitch = score_chords.last().sortAscending().pitches[0]
 
@@ -43,7 +49,7 @@ class ScoreAnalyzer():
 
         analysis['key_signature'] = key_signature
         analysis['scala'] = scala
-        analysis['mode'] = self.get_mode(score, key_signature, last_lowest_pitch)
+        analysis['mode'] = self.get_mode(score, key_signature, scala, last_lowest_pitch)
         analysis['chiavetta'] = self.estimate_chiavetta(score, key_signature)
 
         return analysis
@@ -54,26 +60,26 @@ class ScoreAnalyzer():
         return Path(score.metadata.filePath).stem
 
 
-    def get_mode(self, score:Score, key_signature:str, last_lowest_pitch:Pitch) -> str:
+    def get_mode(self, score:Score, key_signature:str, scala:str, last_lowest_pitch:Pitch) -> str:
 
         modes = ['Ionian', 'Dorian', 'Phrygian', 'Lydian', 'Mixolydian', 'Aeolian', 'Locrian']
-        mode = 'other' if is_ks_simple else 'complex'
 
-        if scala != 'other':
-            index = last_lowest_note.diatonicNoteNum - 1
-            finalis = (index + 4 if bmollaris else index) % 7
+        is_ks_complex = ' ' in key_signature
+        if is_ks_complex:
+            return 'complex'
+        elif scala == 'other':
+            return 'other'
+        else:
+            index = last_lowest_pitch.diatonicNoteNum - 1
+            finalis = (index + 4 if scala == 'bmollaris' else index) % 7
             mode = modes[finalis]
-
-        return mode
+            return mode
 
 
     def get_keySignature(self, score:Score) -> str:
         '''
         Find key signature related info
         '''
-        # if not chordified: score = score.chordify() #type:ignore
-
-        # chords = score.flatten().notes
 
         def get_ks(part) -> str:
             # Maybe can be done easier?
@@ -128,12 +134,18 @@ class ScoreAnalyzer():
         return chiavetta
 
 
-    def resolve_chiavetta(self, score:Score, inPlace=True):
+    def resolve_chiavetta(self, score:Score, chiavetta:str|None=None, scala:str|None=None, inPlace=True):
 
-        score_chordified:Score = score.chordify() #type:ignore
-        key_signature = self.get_keySignature(score)
-        scala = self.get_scala(key_signature)
-        chiavetta = self.estimate_chiavetta(score)
+        if scala == 'other': return score
+
+        if not chiavetta:
+
+            chiavetta = self.estimate_chiavetta(score)
+
+        if not scala:
+
+            key_signature = self.get_keySignature(score)
+            scala = self.get_scala(key_signature)
 
         if chiavetta == 'high':
 

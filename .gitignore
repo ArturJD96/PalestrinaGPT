@@ -1,6 +1,10 @@
 # Ignore all generated data.
 PalestrinaDATA/*/
 
+# Ignore all generated models
+wandb/*
+output/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
