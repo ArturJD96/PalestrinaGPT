@@ -66,6 +66,37 @@ class Score2TextConverter:
         return ScoreAsText(score_string)
 
 
+    def parse_database(self, m21composer='palestrina') -> tuple[dict, str]:
+
+        dataset:dict = {
+            'id':[],
+            'metadata':[],
+            'voice':[],
+            'content':[]
+        }
+
+        id:str = str(datetime.now()).split('.')[0]
+        analyzer = ScoreAnalyzer()
+
+        metadata:dict = self.__dict__
+        metadata['id'] = id
+
+        for score_path in tqdm(m21.corpus.getComposer(m21composer), desc='Parsing'):
+
+            score:Score = m21.converter.parse(score_path).stripTies() #type:ignore
+            score_id = analyzer.get_id(score)
+
+            if self.resolve_chiavetta: analyzer.resolve_chiavetta(score)
+
+            score_text = self(score)
+            dataset['id'].append(score_id)
+            dataset['metadata'].append(metadata)
+            dataset['voice'].append('all')
+            dataset['content'].append(self(score))
+
+        return dataset, id
+
+
     def parse_database_and_save(self, m21composer='palestrina') -> Path:
 
         id:str = str(datetime.now()).split('.')[0]

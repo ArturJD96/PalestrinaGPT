@@ -34,7 +34,7 @@ class Segment:
 
         scores = zip(streams, score_info)
 
-        segments = [Segment(segment, score_info) for stream, score_info in scores for segment in tqdm(cls.segmenter(stream), desc='segmenting score']
+        segments = [Segment(segment, score_info) for stream, score_info in scores for segment in tqdm(cls.segmenter(stream), desc='segmenting score')]
 
         if equal_length:
             '''

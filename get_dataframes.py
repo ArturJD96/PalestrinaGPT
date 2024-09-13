@@ -10,6 +10,11 @@ from PalestrinaUTILS.scores.Segment import Segment
 from PalestrinaUTILS.scores.ScoreAnalyzer import ScoreAnalyzer
 
 '''
+This script creates several dataframes of segments – small monophonic
+snippets of music from rest to rest (or a complete musical 'phrases').
+
+This data will be used later for creating umap plots.
+
 This script:
     1) parses scores of Palestrina as music21 Streams;
     2) analyzes each score [using ScoreAnalyzer];
@@ -25,7 +30,7 @@ DATA_DIR = Path('PalestrinaDATA/vis-dataframes/segments')
 
 '''Parse scores of Palestrina masses.'''
 scores_iterator = tqdm(m21.corpus.getComposer('palestrina'), desc='Parsing scores')
-scores:list[Stream] = [m21.corpus.parse(score_path) for score_path in scores_iterator]
+scores:list[Stream] = [m21.corpus.parse(score_path).stripTies() for score_path in scores_iterator]
 
 '''Analyze each score – create a dict with resulting analysis.'''
 analyzer = ScoreAnalyzer()
