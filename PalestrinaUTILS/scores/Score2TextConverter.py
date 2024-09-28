@@ -26,8 +26,10 @@ class Score2TextConverter:
 
     data_path = Path('PalestrinaDATA/training/score_txt')
 
-    rest_token = 'rest'
-    repeat_token = '.'
+    begin_token = '<|bos|>'
+    end_token = '<|eos|>'
+    repeat_token = '<|rep|>'
+    rest_token = '|rest|'
 
     pitch_modes = { # n:Note
         'nameWithOctave': lambda n: n.nameWithOctave
@@ -66,9 +68,18 @@ class Score2TextConverter:
         return ScoreAsText(score_string)
 
 
-    def parse_database(self, m21composer='palestrina') -> tuple[dict, str]:
+    def parse_database(self, m21composer:str='palestrina', n:int|None=None) -> tuple[dict, str]:
 
-        dataset:dict = {
+        score_paths = m21.corpus.getComposer(m21composer)
+
+        if not n:
+            ...
+        elif n > len(score_paths):
+            n = len(score_paths)
+        else:
+            score_paths = score_paths[:n]
+
+        datadict:dict = {
             'id':[],
             'metadata':[],
             'voice':[],
@@ -81,20 +92,22 @@ class Score2TextConverter:
         metadata:dict = self.__dict__
         metadata['id'] = id
 
-        for score_path in tqdm(m21.corpus.getComposer(m21composer), desc='Parsing'):
+        for score_path in tqdm(score_paths, desc='Parsing'):
 
             score:Score = m21.converter.parse(score_path).stripTies() #type:ignore
             score_id = analyzer.get_id(score)
 
-            if self.resolve_chiavetta: analyzer.resolve_chiavetta(score)
+            if self.resolve_chiavetta:
+                '''Transpose the score according to chiavetta'''
+                analyzer.resolve_chiavetta(score)
 
             score_text = self(score)
-            dataset['id'].append(score_id)
-            dataset['metadata'].append(metadata)
-            dataset['voice'].append('all')
-            dataset['content'].append(self(score))
+            datadict['id'].append(score_id)
+            datadict['metadata'].append(metadata)
+            datadict['voice'].append('all')
+            datadict['content'].append(self(score))
 
-        return dataset, id
+        return datadict, id
 
 
     def parse_database_and_save(self, m21composer='palestrina') -> Path:
@@ -132,6 +145,14 @@ class Score2TextConverter:
         assert len(sites) >= 1
         part:Part = sites[0]
         return part
+
+
+    def get_part_name(self, note:GeneralNote) -> str:
+
+        part:Part = self.get_part(note)
+        part_name = part.partName
+        if part_name == 'Baritone': part_name = 'Bass' # appalling!
+        return part_name
 
 
     def score2array(self, score:Score) -> np.ndarray:
@@ -179,16 +200,28 @@ class Score2TextConverter:
     def stringify_score_array(self, score_array:np.ndarray) -> str:
 
         score_str = ''
-        empty_line = ' '.join(Score2TextConverter.repeat_token for i in range(score_array.shape[1]))
+
+        part_names = [self.get_part_name(general_note) for general_note in score_array[0]]
+
+        if self.include_part_name:
+            bos_tokens = [f'{part_name}@{Score2TextConverter.begin_token}' for part_name in part_names]
+            eos_tokens = [f'{part_name}@{Score2TextConverter.end_token}' for part_name in part_names]
+        else:
+            bos_tokens = [Score2TextConverter.begin_token for part_name in part_names]
+            eos_tokens = [Score2TextConverter.end_token for part_name in part_names]
+
+        score_str += ' '.join(bos_tokens) + '\n'
 
         for i, simultaneity in enumerate(score_array):
 
             # shortest_lasting_note
             offset = self.shortest_offset * i
             line_str = ' '.join(self.stringify_note(note, offset) for note in simultaneity)
-            if line_str == empty_line: continue
+            if all(n.offset < offset for n in simultaneity): continue
             score_str += line_str
             score_str += '\n'
+
+        score_str += ' '.join(eos_tokens) + '\n'
 
         return score_str
 
@@ -208,11 +241,10 @@ class Score2TextConverter:
             duration = self.stringify_duration(general_note, current_offset)
             string = f'<{pitch}>({duration})'
 
-            if self.include_part_name:
+        if self.include_part_name:
 
-                part_name:str = self.get_part(general_note).partName
-                if part_name == 'Baritone': part_name = 'Bass'
-                string = f'{part_name}@{string}'
+            part_name:str = self.get_part_name(general_note)
+            string = f'{part_name}@{string}'
 
         return string
 

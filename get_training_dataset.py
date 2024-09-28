@@ -6,11 +6,12 @@ DATA_PATH = Path('PalestrinaDATA/training/')
 
 converter1 = Score2TextConverter(
     resolve_chiavetta=True,
-    include_part_name=False
+    include_part_name=True,
+    repeat_tokens=True,
 )
 
-# converter1.parse_database_and_save() # saving directly to the disk as .txt files.
-
-dataset_dict, id = converter1.parse_database()
-dataset = Dataset.from_dict(dataset_dict)
-dataset.save_to_disk(str(DATA_PATH/'dataset'/id))
+datadict, id = converter1.parse_database(n=2)
+dataset = Dataset.from_dict(datadict)
+print(dataset)
+print(dataset['content'][0])
+# dataset.save_to_disk(str(DATA_PATH/'dataset'/id))
